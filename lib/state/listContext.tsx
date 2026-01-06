@@ -94,8 +94,8 @@ export function ListProvider(props: ListProviderProps) {
     };
 
     //adding newList to state
-    setLists([...lists, newList]);
-    // setLists((prevLists) => [...prevLists, newList]);
+    // setLists([...lists, newList]);
+    setLists((prevLists) => [...prevLists, newList]);
 
     return newList;
   };
