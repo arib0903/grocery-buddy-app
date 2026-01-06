@@ -14,7 +14,7 @@ import { GroceryItem, GroceryList } from "../types";
 
 interface ListContextType {
   lists: GroceryList[];
-  addList: (name: string, store: string, items?: GroceryItem[]) => GroceryList;
+  addList: (name: string, store: string) => GroceryList;
   updateList: (id: string, updates: Partial<GroceryList>) => void;
   deleteList: (id: string) => void;
   getListById: (id: string) => GroceryList | undefined;
@@ -66,10 +66,11 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: addList
   // ------------------------------------------
+  // Used in: app/create-list/index.tsx to create a new list by the handleCreateList callback function at line 45
   // Parameters: name (string), store (string) the actual store, items (GroceryItem[], default to [])
   // Returns: GroceryList (the newly created list)
   /**
-   * NEED TO: 
+   * NEED TO:
    * 1.  generate a unique ID for list
    * 2. get the current timestamp to update the created at
    * 3. create a newList object of GroceryList type that will be the strucutre of grocerylist
@@ -77,11 +78,7 @@ export function ListProvider(props: ListProviderProps) {
    *
    */
 
-  const addList = (
-    name: string,
-    store: string,
-    items: GroceryItem[] = []
-  ): GroceryList => {
+  const addList = (name: string, store: string): GroceryList => {
     // generate unique ID for list:
     let uniqID = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // get the current timestamp:
@@ -91,13 +88,14 @@ export function ListProvider(props: ListProviderProps) {
       id: uniqID,
       name,
       store,
-      items,
+      items: [],
       createdAt: timeStamp,
       updatedAt: timeStamp,
     };
 
     //adding newList to state
     setLists([...lists, newList]);
+    // setLists((prevLists) => [...prevLists, newList]);
 
     return newList;
   };
@@ -105,6 +103,7 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: updateList
   // ------------------------------------------
+  // Used internally by: addItemToList, updateItem, and deleteItem functions to update list state
   // TODO: updates the name of list or store
   // Parameters: list id (string), updates (Partial<GroceryList>)
   // Returns: void
@@ -130,6 +129,7 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: deleteList
   // ------------------------------------------
+  // Used in: Currently not used in any component (available for future implementation)
   // Parameters: id (string)
   // Returns: void
   const deleteList = (id: string) => {
@@ -142,6 +142,7 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: getListById
   // ------------------------------------------
+  // Used in: app/list/[id].tsx at line 39 to retrieve the current list being displayed
   // Parameters: id (string)
   // Returns: GroceryList | undefined... undefined because there could be none by the id
 
@@ -153,6 +154,7 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: addItemToList
   // ------------------------------------------
+  // Used in: app/list/[id].tsx at line 51 by the handleAddItem function to add a new item to the list
   // Parameters: listId (string), name (string), quantity (optional string), price (number), addedBy (string)
   // Returns: void
   /***
@@ -189,6 +191,7 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: updateItem
   // ------------------------------------------
+  // Used in: app/list/[id].tsx at line 77 by the handleSaveEdit function to update an item's name
   // TODO: Create a function called updateItem
   // Parameters: listId (string), itemId (string), updates (Partial<GroceryItem>)
   // Returns: void
@@ -197,7 +200,7 @@ export function ListProvider(props: ListProviderProps) {
    * 1. Use the listId to find the specific list
    * 2. use the itemId to find the specific item and merge the items and updates
    * 3. if specific item doesn't match what we need to be updating, then just return the item object of groceryItem type
-   * 
+   *
    */
 
   const updateItem = (
@@ -210,7 +213,7 @@ export function ListProvider(props: ListProviderProps) {
 
     if (!specificList) return;
 
-    const updatedItems: GroceryItem[]= specificList.items.map((item) =>
+    const updatedItems: GroceryItem[] = specificList.items.map((item) =>
       item.id === itemId ? { ...item, ...updates } : item
     );
 
@@ -219,9 +222,9 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: deleteItem
   // ------------------------------------------
+  // Used in: app/list/[id].tsx at line 62 by the handleDeleteItem function to remove an item from the list
   // Parameters: listId (string), itemId (string)
   // Returns: void
- 
 
   const deleteItem = (listId: string, itemId: string) => {
     const specificList: GroceryList | undefined = getListById(listId);
@@ -238,10 +241,10 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: toggleItem
   // ------------------------------------------
+  // Used in: app/list/[id].tsx (currently commented out at line 58, available for future use to toggle item completion status)
   // TODO: Create a function called toggleItem
   // Parameters: listId (string), itemId (string)
   // Returns: void
-
 
   const toggleItem = (listId: string, itemId: string) => {
     const specificList: GroceryList | undefined = getListById(listId);
@@ -253,7 +256,6 @@ export function ListProvider(props: ListProviderProps) {
     if (!specificItem) return;
     updateItem(listId, itemId, { completed: !specificItem.completed });
   };
-
 
   // creating an object of ListContextType which will be used as a value for the listcontext provider
   const value: ListContextType = {

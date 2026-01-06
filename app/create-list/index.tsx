@@ -28,7 +28,7 @@ import { GroceryList } from "../../lib/types";
 export default function CreateList() {
   const [listName, setListName] = useState("");
   const [selectedStore, setSelectedStore] = useState("");
-  const { lists, addList } = useLists();
+  const { addList } = useLists();
 
   const handleCreateList = () => {
     // Validate inputs
