@@ -35,6 +35,11 @@ export const colors = {
   gray800: "#212529",
   gray900: "#0d1117",
 
+  // Shopping mode green (Figma brand color)
+  shoppingGreen: "#3DBE8B",
+  shoppingGreenDark: "#2da876",
+  shoppingGreenLight: "#DCFCE8",
+
   // Background colors
   background: "#f8f9fa",
   surface: "#ffffff",

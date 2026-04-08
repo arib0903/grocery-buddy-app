@@ -1,9 +1,10 @@
 // What every grocery item looks like
+// NOTE: This is the BLUEPRINT item — it lives on the template list.
+// `completed` does NOT belong here. Checked-off state lives on SessionItem instead.
 export interface GroceryItem {
   id: string; // Unique identifier (like "item-123")
   name: string; // What the item is called ("Milk")
   quantity?: string;
-  completed: boolean; // Whether it's been checked off the list
   createdAt: string; // When it was added to the list
   price?: number;
   addedBy?: string;
@@ -23,6 +24,29 @@ export interface Store {
   id: string;
   name: string;
   icon: string; // Emoji representation of the store
+}
+
+// ─────────────────────────────────────────────
+// SHOPPING SESSION TYPES
+// ─────────────────────────────────────────────
+
+// A snapshot of one item during an active shopping trip.
+// This is what gets checked off — never the blueprint GroceryItem.
+export interface SessionItem {
+  itemId: string;      // References GroceryItem.id from the template list
+  name: string;        // Snapshot of the name at the time the session was created
+  quantity?: string;   // Snapshot of the quantity at the time the session was created
+  completed: boolean;  // Whether this item has been picked up on THIS trip
+}
+
+// One trip to the store — created from a GroceryList blueprint.
+// Checking items off here never touches the original list.
+export interface ShoppingSession {
+  id: string;
+  listId: string;         // References GroceryList.id (the blueprint this was made from)
+  createdAt: string;      // When this shopping trip started
+  completedAt?: string;   // Set when the user finishes — undefined means in-progress
+  items: SessionItem[];   // Snapshot of all items at the time of session creation
 }
 
 // export interface ListStore {

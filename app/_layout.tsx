@@ -9,38 +9,59 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ListProvider } from "../lib/state/listContext";
+import { SessionProvider } from "../lib/state/sessionContext";
 
 export default function RootLayout() {
   return (
     <ListProvider>
-      <StatusBar style="auto" />
-      <Stack>
-        <Stack.Screen
-          name="index"
-          options={{
-            title: "My Lists",
-            headerStyle: {
-              backgroundColor: "#f8f9fa",
-            },
-            headerTitleStyle: {
-              fontWeight: "bold",
-            },
-          }}
-        />
-        <Stack.Screen
-          name="create-list/index"
-          options={{
-            title: "Create New List",
-            presentation: "modal",
-          }}
-        />
-        <Stack.Screen
-          name="list/[id]"
-          options={{
-            title: "List Details",
-          }}
-        />
-      </Stack>
+      <SessionProvider>
+        <StatusBar style="auto" />
+        <Stack>
+          <Stack.Screen
+            name="index"
+            options={{
+              title: "My Lists",
+              headerStyle: {
+                backgroundColor: "#f8f9fa",
+              },
+              headerTitleStyle: {
+                fontWeight: "bold",
+              },
+            }}
+          />
+          <Stack.Screen
+            name="create-list/index"
+            options={{
+              title: "Create New List",
+              presentation: "modal",
+            }}
+          />
+          <Stack.Screen
+            name="list/[id]"
+            options={{
+              title: "List Details",
+            }}
+          />
+          <Stack.Screen
+            name="login"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="shopping/[id]"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="archive/index"
+            options={{
+              headerShown: false,
+            }}
+          />
+        </Stack>
+      </SessionProvider>
     </ListProvider>
   );
 }

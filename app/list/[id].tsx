@@ -18,10 +18,11 @@ import {
   SafeAreaView,
 } from "react-native";
 
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors } from "../../constants/colors";
 import { spacing } from "../../constants/spacing";
 import { useLists } from "../../lib/state/listContext";
+import { useSessions } from "../../lib/state/sessionContext";
 import { GroceryList } from "../../lib/types";
 import SearchBar from "../../components/common/SearchBar";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,6 +34,8 @@ export default function ListDetail() {
 
   const { getListById, addItemToList, toggleItem, deleteItem, updateItem } =
     useLists();
+  const { startSession, getActiveSessionForList, resyncSession } = useSessions();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   //Get specific list:
@@ -80,8 +83,16 @@ export default function ListDetail() {
     }
   };
   const handleStartShopping = () => {
-    // TODO: Navigate to shopping mode
-    Alert.alert("Shopping Mode", "Shopping mode coming soon!");
+    if (!currentList) return;
+    const existing = getActiveSessionForList(currentList.id);
+    if (existing) {
+      // Merge any items added to the blueprint after this session was created
+      resyncSession(existing.id, currentList);
+      router.push(`/shopping/${existing.id}`);
+    } else {
+      const session = startSession(currentList);
+      router.push(`/shopping/${session.id}`);
+    }
   };
 
   return (
@@ -154,14 +165,7 @@ export default function ListDetail() {
               // View Mode
               <>
                 <View style={styles.itemDetails}>
-                  <Text
-                    style={[
-                      styles.itemName,
-                      item.completed && styles.itemNameCompleted,
-                    ]}
-                  >
-                    {item.name}
-                  </Text>
+                  <Text style={styles.itemName}>{item.name}</Text>
                   {item.quantity && (
                     <Text style={styles.itemQuantity}>{item.quantity}</Text>
                   )}

@@ -22,7 +22,7 @@ interface ListContextType {
   updateItem: (
     listId: string,
     itemId: string,
-    updates: Partial<GroceryItem>
+    updates: Partial<GroceryItem>,
   ) => void;
   deleteItem: (listId: string, itemId: string) => void;
   toggleItem: (listId: string, itemId: string) => void;
@@ -118,13 +118,14 @@ export function ListProvider(props: ListProviderProps) {
    * updates will also be an object that contains exactly what we want to update
    */
   const updateList = (id: string, updates: Partial<GroceryList>) => {
-    const updatedList: GroceryList[] = lists.map((listObject) =>
-      listObject.id == id
-        ? { ...listObject, ...updates, updatedAt: new Date().toISOString() }
-        : listObject
-    );
-    setLists(updatedList);
-    return;
+    setLists((prev) => {
+      const updatedList: GroceryList[] = prev.map((listObject) =>
+        listObject.id == id
+          ? { ...listObject, ...updates, updatedAt: new Date().toISOString() }
+          : listObject,
+      );
+      return updatedList;
+    });
   };
   // ------------------------------------------
   // FUNCTION: deleteList
@@ -171,22 +172,31 @@ export function ListProvider(props: ListProviderProps) {
     name: string,
     quantity?: string,
     price?: number,
-    addedBy?: string
+    addedBy?: string,
   ) => {
-    const findList = lists.find((listObject) => listObject.id === listId);
-    if (!findList) return; // had to do this otherwise findList.items bugout
-
     const newItem: GroceryItem = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       name,
       quantity,
       createdAt: new Date().toISOString(),
-      completed: false,
       price,
       addedBy,
     };
 
-    updateList(listId, { items: [...findList.items, newItem] });
+    setLists((prev) => {
+      const findList = prev.find((listObject) => listObject.id === listId);
+      if (!findList) return prev;
+
+      return prev.map((listObject) =>
+        listObject.id === listId
+          ? {
+              ...listObject,
+              items: [...listObject.items, newItem],
+              updatedAt: new Date().toISOString(),
+            }
+          : listObject,
+      );
+    });
   };
   // ------------------------------------------
   // FUNCTION: updateItem
@@ -206,7 +216,7 @@ export function ListProvider(props: ListProviderProps) {
   const updateItem = (
     listId: string,
     itemId: string,
-    updates: Partial<GroceryItem>
+    updates: Partial<GroceryItem>,
   ) => {
     //get and find the specific list:
     const specificList: GroceryList | undefined = getListById(listId);
@@ -214,7 +224,7 @@ export function ListProvider(props: ListProviderProps) {
     if (!specificList) return;
 
     const updatedItems: GroceryItem[] = specificList.items.map((item) =>
-      item.id === itemId ? { ...item, ...updates } : item
+      item.id === itemId ? { ...item, ...updates } : item,
     );
 
     updateList(listId, { items: updatedItems });
@@ -232,7 +242,7 @@ export function ListProvider(props: ListProviderProps) {
     if (!specificList) return;
 
     const filteredItems = specificList.items.filter(
-      (item) => item.id !== itemId
+      (item) => item.id !== itemId,
     );
 
     updateList(listId, { items: filteredItems });
@@ -241,20 +251,15 @@ export function ListProvider(props: ListProviderProps) {
   // ------------------------------------------
   // FUNCTION: toggleItem
   // ------------------------------------------
-  // Used in: app/list/[id].tsx (currently commented out at line 58, available for future use to toggle item completion status)
-  // TODO: Create a function called toggleItem
+  // NOTE: Item completion is now managed by ShoppingSession (sessionContext.tsx).
+  // Toggling completed state on the blueprint list is intentionally removed.
+  // This function is kept as a no-op so existing call sites don't break at runtime.
   // Parameters: listId (string), itemId (string)
   // Returns: void
 
-  const toggleItem = (listId: string, itemId: string) => {
-    const specificList: GroceryList | undefined = getListById(listId);
-    if (!specificList) return;
-
-    const specificItem: GroceryItem | undefined = specificList.items.find(
-      (item) => item.id === itemId
-    );
-    if (!specificItem) return;
-    updateItem(listId, itemId, { completed: !specificItem.completed });
+  const toggleItem = (_listId: string, _itemId: string) => {
+    // Completion state lives on SessionItem, not GroceryItem.
+    // Use toggleSessionItem from sessionContext instead.
   };
 
   // creating an object of ListContextType which will be used as a value for the listcontext provider
