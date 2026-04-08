@@ -14,7 +14,7 @@ import { GroceryItem, GroceryList } from "../types";
 
 interface ListContextType {
   lists: GroceryList[];
-  addList: (name: string, store: string) => GroceryList;
+  addList: (name: string, store: string) => GroceryList | null;
   updateList: (id: string, updates: Partial<GroceryList>) => void;
   deleteList: (id: string) => void;
   getListById: (id: string) => GroceryList | undefined;
@@ -78,7 +78,23 @@ export function ListProvider(props: ListProviderProps) {
    *
    */
 
-  const addList = (name: string, store: string): GroceryList => {
+  const addList = (name: string, store: string): GroceryList | null => {
+    const normalizedName = name.trim().replace(/\s+/g, " ");
+    const normalizedStore = store.trim().replace(/\s+/g, " ");
+
+    // Core validation: required fields, sane lengths, and no control chars.
+    if (!normalizedName || !normalizedStore) return null;
+    if (normalizedName.length > 80 || normalizedStore.length > 80) return null;
+    if (/[\u0000-\u001F\u007F]/.test(normalizedName)) return null;
+    if (/[\u0000-\u001F\u007F]/.test(normalizedStore)) return null;
+
+    const duplicateExists = lists.some(
+      (list) =>
+        list.name.toLowerCase() === normalizedName.toLowerCase() &&
+        list.store.toLowerCase() === normalizedStore.toLowerCase(),
+    );
+    if (duplicateExists) return null;
+
     // generate unique ID for list:
     let uniqID = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // get the current timestamp:
@@ -86,8 +102,8 @@ export function ListProvider(props: ListProviderProps) {
     //define newList object:
     const newList: GroceryList = {
       id: uniqID,
-      name,
-      store,
+      name: normalizedName,
+      store: normalizedStore,
       items: [],
       createdAt: timeStamp,
       updatedAt: timeStamp,

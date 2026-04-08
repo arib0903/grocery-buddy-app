@@ -23,7 +23,6 @@ import { colors } from "../../constants/colors";
 import { spacing } from "../../constants/spacing";
 import SearchBar from "../../components/common/SearchBar";
 import { useLists } from "../../lib/state/listContext";
-import { GroceryList } from "../../lib/types";
 
 export default function CreateList() {
   const [listName, setListName] = useState("");
@@ -42,7 +41,11 @@ export default function CreateList() {
     }
 
     //Save the list to state/backend
-    const newList: GroceryList = addList(listName, selectedStore);
+    const newList = addList(listName, selectedStore);
+    if (!newList) {
+      Alert.alert("Invalid list", "Please provide valid, unique list details.");
+      return;
+    }
 
     // Navigate to the list of groceries items (will display nothing in the beginning since list created)
     router.push("/list/" + newList.id);

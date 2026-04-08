@@ -8,14 +8,14 @@ describe("Testing adding new list - addList", () => {
       wrapper: ListProvider,
     });
 
-    let newList: GroceryList;
+    let newList: GroceryList | null = null;
 
     act(() => {
       newList = result.current.addList("Weekly Groceries", "Walmart");
     });
 
     // Verify the returned list has the correct structure
-    expect(newList!).toBeDefined();
+    expect(newList).toBeDefined();
     expect(newList!.name).toBe("Weekly Groceries");
     expect(newList!.store).toBe("Walmart");
     expect(newList!.items).toEqual([]);
@@ -46,8 +46,8 @@ describe("Testing adding new list - addList", () => {
       wrapper: ListProvider,
     });
 
-    let list1: GroceryList;
-    let list2: GroceryList;
+    let list1: GroceryList | null = null;
+    let list2: GroceryList | null = null;
 
     act(() => {
       list1 = result.current.addList("List 1", "Store A");
@@ -55,5 +55,70 @@ describe("Testing adding new list - addList", () => {
     });
 
     expect(list1!.id).not.toBe(list2!.id);
+  });
+
+  it("should reject empty list name", () => {
+    const { result } = renderHook(() => useLists(), {
+      wrapper: ListProvider,
+    });
+
+    let newList: GroceryList | null = null;
+    act(() => {
+      newList = result.current.addList("   ", "Walmart");
+    });
+
+    expect(newList).toBeNull();
+    expect(result.current.lists).toHaveLength(0);
+  });
+
+  it("should reject empty store", () => {
+    const { result } = renderHook(() => useLists(), {
+      wrapper: ListProvider,
+    });
+
+    let newList: GroceryList | null = null;
+    act(() => {
+      newList = result.current.addList("Weekly Groceries", "   ");
+    });
+
+    expect(newList).toBeNull();
+    expect(result.current.lists).toHaveLength(0);
+  });
+
+  it("should trim/collapse spaces and block case-insensitive duplicates by name+store", () => {
+    const { result } = renderHook(() => useLists(), {
+      wrapper: ListProvider,
+    });
+
+    let first: GroceryList | null = null;
+    let second: GroceryList | null = null;
+
+    act(() => {
+      first = result.current.addList("  Weekly   Groceries  ", "  Walmart  ");
+    });
+
+    act(() => {
+      second = result.current.addList("weekly groceries", "walmart");
+    });
+
+    expect(first).not.toBeNull();
+    expect(first!.name).toBe("Weekly Groceries");
+    expect(first!.store).toBe("Walmart");
+    expect(second).toBeNull();
+    expect(result.current.lists).toHaveLength(1);
+  });
+
+  it("should reject names longer than 80 characters", () => {
+    const { result } = renderHook(() => useLists(), {
+      wrapper: ListProvider,
+    });
+
+    let newList: GroceryList | null = null;
+    act(() => {
+      newList = result.current.addList("a".repeat(81), "Walmart");
+    });
+
+    expect(newList).toBeNull();
+    expect(result.current.lists).toHaveLength(0);
   });
 });
