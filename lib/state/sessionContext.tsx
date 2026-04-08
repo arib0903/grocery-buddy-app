@@ -13,6 +13,7 @@
  */
 
 import { createContext, useState, useContext, ReactNode } from "react";
+import { Alert } from "react-native";
 import { GroceryList, ShoppingSession, SessionItem } from "../types";
 
 // ========================================
@@ -26,7 +27,7 @@ interface SessionContextType {
   // Start a new shopping trip from a blueprint list.
   // Snapshots all items from the list at this moment.
   // Returns the newly created session.
-  startSession: (list: GroceryList) => ShoppingSession;
+  startSession: (list: GroceryList) => ShoppingSession | null;
 
   // Get a single session by its ID.
   getSessionById: (sessionId: string) => ShoppingSession | undefined;
@@ -85,7 +86,15 @@ export function SessionProvider(props: SessionProviderProps) {
   // Parameters: list (GroceryList) — the blueprint to snapshot
   // Returns: ShoppingSession (the newly created session)
 
-  const startSession = (list: GroceryList): ShoppingSession => {
+  const startSession = (list: GroceryList): ShoppingSession | null => {
+    if (list.items.length === 0) {
+      Alert.alert(
+        "Cannot Start Session",
+        "Add at least one item to this list before starting shopping mode.",
+      );
+      return null;
+    }
+
     // Snapshot each blueprint item into a SessionItem.
     // Notice: no `completed` field on GroceryItem anymore — sessions own that.
     const snapshotItems: SessionItem[] = list.items.map((item) => ({

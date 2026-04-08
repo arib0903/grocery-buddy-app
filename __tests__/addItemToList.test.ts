@@ -8,7 +8,7 @@ describe("addItemToList", () => {
     let listId: string;
 
     act(() => {
-      listId = result.current.addList("Weekly Groceries", "Walmart").id;
+      listId = result.current.addList("Weekly Groceries", "Walmart")!.id;
       result.current.addList("Party Supplies", "Target"); // second list — should be untouched
     });
     act(() => {
@@ -43,7 +43,7 @@ describe("deleteItem", () => {
     let listId: string;
 
     act(() => {
-      listId = result.current.addList("Weekly Groceries", "Walmart").id;
+      listId = result.current.addList("Weekly Groceries", "Walmart")!.id;
     });
     act(() => {
       result.current.addItemToList(listId, "Milk");
@@ -81,7 +81,7 @@ describe("updateItem", () => {
     let listId: string;
 
     act(() => {
-      listId = result.current.addList("Weekly Groceries", "Walmart").id;
+      listId = result.current.addList("Weekly Groceries", "Walmart")!.id;
     });
     act(() => {
       result.current.addItemToList(listId, "Milk");

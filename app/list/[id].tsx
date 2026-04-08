@@ -91,6 +91,7 @@ export default function ListDetail() {
       router.push(`/shopping/${existing.id}`);
     } else {
       const session = startSession(currentList);
+      if (!session) return;
       router.push(`/shopping/${session.id}`);
     }
   };

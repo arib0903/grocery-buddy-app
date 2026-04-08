@@ -1,6 +1,9 @@
 import { renderHook, act } from "@testing-library/react";
+import { Alert } from "react-native";
 import { SessionProvider, useSessions } from "../lib/state/sessionContext";
 import { GroceryList } from "../lib/types";
+
+jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
 // ── Shared fixture ─────────────────────────────────────────────────────────────
 const mockList: GroceryList = {
@@ -41,18 +44,23 @@ describe("startSession", () => {
     session.items.forEach((item) => expect(item.completed).toBe(false));
   });
 
-  it("[failure] creates a session with an empty items array when the blueprint has no items", () => {
+  it("[failure] prevents creating a session when the blueprint has no items", () => {
     const { result } = renderHook(() => useSessions(), {
       wrapper: SessionProvider,
     });
     const emptyList: GroceryList = { ...mockList, items: [] };
 
+    let session = null;
     act(() => {
-      result.current.startSession(emptyList);
+      session = result.current.startSession(emptyList);
     });
 
-    expect(result.current.sessions).toHaveLength(1);
-    expect(result.current.sessions[0].items).toHaveLength(0);
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Cannot Start Session",
+      "Add at least one item to this list before starting shopping mode.",
+    );
+    expect(session).toBeNull();
+    expect(result.current.sessions).toHaveLength(0);
   });
 });
 
@@ -65,7 +73,7 @@ describe("toggleSessionItem", () => {
     let sessionId: string;
 
     act(() => {
-      sessionId = result.current.startSession(mockList).id;
+      sessionId = result.current.startSession(mockList)!.id;
     });
     act(() => {
       result.current.toggleSessionItem(sessionId, "item-1");
@@ -100,7 +108,7 @@ describe("completeSession", () => {
     let sessionId: string;
 
     act(() => {
-      sessionId = result.current.startSession(mockList).id;
+      sessionId = result.current.startSession(mockList)!.id;
     });
     act(() => {
       result.current.completeSession(sessionId);
@@ -136,7 +144,7 @@ describe("resyncSession", () => {
     let sessionId: string;
 
     act(() => {
-      sessionId = result.current.startSession(mockList).id;
+      sessionId = result.current.startSession(mockList)!.id;
     });
 
     const updatedList: GroceryList = {
@@ -167,7 +175,7 @@ describe("resyncSession", () => {
     let sessionId: string;
 
     act(() => {
-      sessionId = result.current.startSession(mockList).id;
+      sessionId = result.current.startSession(mockList)!.id;
     });
     act(() => {
       result.current.resyncSession(sessionId, mockList);
