@@ -43,7 +43,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          truncate -s 20000 patches.txt
+          truncate -s 6000 patches.txt   # ← was 20000; keep under ~8k token limit
 
           PAYLOAD=$(jq -n \
             --arg title "${{ github.event.pull_request.title }}" \
@@ -66,10 +66,17 @@ jobs:
 
           RESPONSE=$(curl -s "https://models.github.ai/inference/chat/completions" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -d "$PAYLOAD")
 
           echo "API Response: $RESPONSE"
+
+          #check for error before parsing
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            echo "GitHub Models API error: $(echo "$RESPONSE" | jq -r '.error.message')" >&2
+            exit 1
+          fi
+
           echo "$RESPONSE" | jq -r '.choices[0].message.content' > summary.txt
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           cat summary.txt >> $GITHUB_OUTPUT
