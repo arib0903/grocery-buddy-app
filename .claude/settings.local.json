@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "mcp__figma-mcp__add_figma_file",
+      "Read(//Users/mahbo1/.claude/plugins/cache/**)",
+      "Read(//Users/mahbo1/.claude/plugins/data/**)",
+      "Bash(rm -rf /Users/mahbo1/Desktop/mobile_project/.claude/skills/claudemap-runtime/node_modules)",
+      "Bash(rm -rf /Users/mahbo1/Desktop/mobile_project/.claude/skills/claudemap-runtime)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}
