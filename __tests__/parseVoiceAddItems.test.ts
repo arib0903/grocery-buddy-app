@@ -30,4 +30,10 @@ describe("parseVoiceAddItems", () => {
 
     expect(parsed).toEqual([]);
   });
+
+  it("treats transcript with no add keyword as raw item names", () => {
+    const parsed = parseVoiceAddItems("orange juice");
+
+    expect(parsed).toEqual([{ name: "orange juice" }]);
+  });
 });
