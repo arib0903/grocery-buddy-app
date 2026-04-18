@@ -40,6 +40,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          truncate -s 20000 patches.txt
+
           PAYLOAD=$(jq -n \
             --arg title "${{ github.event.pull_request.title }}" \
             --rawfile files files.txt \
