@@ -16,14 +16,20 @@ const mockList: GroceryList = {
     {
       id: "item-1",
       name: "Milk",
-      quantity: "1 gallon",
+      quantity: 1,
+      unit: "gal",
+      notes: null,
       createdAt: "2025-12-01T10:00:00Z",
+      updatedAt: "2025-12-01T10:00:00Z",
     },
     {
       id: "item-2",
       name: "Bread",
-      quantity: "2 loaves",
+      quantity: 2,
+      unit: null,
+      notes: null,
       createdAt: "2025-12-01T10:01:00Z",
+      updatedAt: "2025-12-01T10:01:00Z",
     },
   ],
 };
@@ -153,9 +159,12 @@ describe("resyncSession", () => {
         ...mockList.items,
         {
           id: "item-3",
-          name: "Eggs",
-          quantity: "1 dozen",
+          name: "Egg",
+          quantity: 12,
+          unit: null,
+          notes: null,
           createdAt: "2025-12-01T10:05:00Z",
+          updatedAt: "2025-12-01T10:05:00Z",
         },
       ],
     };
@@ -165,7 +174,7 @@ describe("resyncSession", () => {
     });
 
     expect(result.current.sessions[0].items).toHaveLength(3);
-    expect(result.current.sessions[0].items[2].name).toBe("Eggs");
+    expect(result.current.sessions[0].items[2].name).toBe("Egg");
   });
 
   it("[failure] does not change the session when the blueprint has no new items", () => {
@@ -182,5 +191,176 @@ describe("resyncSession", () => {
     });
 
     expect(result.current.sessions[0].items).toHaveLength(2);
+  });
+});
+
+describe("context wrapper methods", () => {
+  it("getSessionById returns the matching session and undefined when missing", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+    });
+
+    expect(result.current.getSessionById(sessionId)).toBeDefined();
+    expect(result.current.getSessionById("missing-session")).toBeUndefined();
+  });
+
+  it("getActiveSessionForList returns active session and ignores completed sessions", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+    });
+
+    const activeBeforeComplete = result.current.getActiveSessionForList(
+      mockList.id,
+    );
+    expect(activeBeforeComplete?.id).toBe(sessionId);
+
+    act(() => {
+      result.current.completeSession(sessionId);
+    });
+
+    expect(result.current.getActiveSessionForList(mockList.id)).toBeUndefined();
+    expect(
+      result.current.getActiveSessionForList("missing-list"),
+    ).toBeUndefined();
+  });
+
+  it("deleteSession removes an existing session and leaves state unchanged for unknown ids", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+    });
+
+    expect(result.current.sessions).toHaveLength(1);
+
+    act(() => {
+      result.current.deleteSession("missing-session");
+    });
+    expect(result.current.sessions).toHaveLength(1);
+
+    act(() => {
+      result.current.deleteSession(sessionId);
+    });
+    expect(result.current.sessions).toHaveLength(0);
+  });
+
+  it("addItemToSession trims name and applies null defaults for optional fields", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+    });
+
+    act(() => {
+      result.current.addItemToSession(sessionId, "  yogurt  ");
+    });
+
+    const addedItem = result.current.sessions[0].items.find(
+      (i) => i.name === "yogurt",
+    );
+    expect(addedItem).toBeDefined();
+    expect(addedItem?.quantity).toBeNull();
+    expect(addedItem?.unit).toBeNull();
+    expect(addedItem?.completed).toBe(false);
+  });
+
+  it("removeItemFromSession matches item name case-insensitively", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+      result.current.addItemToSession(sessionId, "yogurt");
+    });
+
+    act(() => {
+      result.current.removeItemFromSession(sessionId, "YOGURT");
+    });
+
+    expect(
+      result.current.sessions[0].items.some((i) => i.name === "yogurt"),
+    ).toBe(false);
+  });
+
+  it("setSessionItemCompleted updates completion by name case-insensitively", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+    });
+
+    act(() => {
+      result.current.setSessionItemCompleted(sessionId, "MILK", true);
+    });
+
+    const milk = result.current.sessions[0].items.find(
+      (i) => i.name === "Milk",
+    );
+    expect(milk?.completed).toBe(true);
+  });
+});
+
+describe("resyncSession edge cases", () => {
+  it("does nothing when trying to resync a completed session", () => {
+    const { result } = renderHook(() => useSessions(), {
+      wrapper: SessionProvider,
+    });
+    let sessionId: string;
+
+    act(() => {
+      sessionId = result.current.startSession(mockList)!.id;
+      result.current.completeSession(sessionId);
+    });
+
+    const updatedList: GroceryList = {
+      ...mockList,
+      items: [
+        ...mockList.items,
+        {
+          id: "item-3",
+          name: "Egg",
+          quantity: 12,
+          unit: null,
+          notes: null,
+          createdAt: "2025-12-01T10:05:00Z",
+          updatedAt: "2025-12-01T10:05:00Z",
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.resyncSession(sessionId, updatedList);
+    });
+
+    expect(result.current.sessions[0].items).toHaveLength(2);
+  });
+});
+
+describe("useSessions guard", () => {
+  it("throws when used outside SessionProvider", () => {
+    expect(() => renderHook(() => useSessions())).toThrow(
+      "useSessions must be used within a SessionProvider",
+    );
   });
 });

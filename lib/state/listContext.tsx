@@ -1,16 +1,18 @@
 /*
- * This file creates a "data warehouse" that all the screens can access.
+ * This file manages GroceryList state and exposes CRUD operations to all screens.
+ *
+ * All data operations are delegated to LocalListService (lib/api/listService.ts).
+ * To migrate to AppSync, swap LocalListService for AppSyncListService —
+ * this file and all components remain unchanged.
  */
 
-import { createContext, useState, useContext, ReactNode } from "react";
+import { createContext, useState, useContext, useRef, useMemo, ReactNode } from "react";
 import { GroceryItem, GroceryList } from "../types";
+import { LocalListService } from "../api/listService";
 
 // ========================================
 // SECTION 1: TYPESCRIPT INTERFACE
 // ========================================
-// This defines the "shape" of what this Context will provide so that all the screens can acess it.
-// This context hook will provide the functionalities of the CRUD operations for the lists
-// AND act as a storage for the list data as GroceryList[]
 
 interface ListContextType {
   lists: GroceryList[];
@@ -18,267 +20,103 @@ interface ListContextType {
   updateList: (id: string, updates: Partial<GroceryList>) => void;
   deleteList: (id: string) => void;
   getListById: (id: string) => GroceryList | undefined;
-  addItemToList: (listId: string, name: string, quantity?: string) => void;
-  updateItem: (
-    listId: string,
-    itemId: string,
-    updates: Partial<GroceryItem>,
-  ) => void;
+  addItemToList: (listId: string, name: string, quantity?: number | null, unit?: string, category?: string, notes?: string) => void;
+  deleteItemByName: (listId: string, itemName: string) => void;
+  updateItem: (listId: string, itemId: string, updates: Partial<GroceryItem>) => void;
   deleteItem: (listId: string, itemId: string) => void;
   toggleItem: (listId: string, itemId: string) => void;
 }
 
-// JUST A REFRENCE TO LOOK AT HOW THE DATA IS DEFINED
-/** GROCERY LIST
- * id: string; // Unique identifier (like "list-456")
-  name: string; // Name of the list ("Weekly Groceries")
-  items: GroceryItem[]; // Array of all items in this list
-  createdAt: string; // When the list was created
-  updatedAt: string; // When the list was last modified
- */
-/** GROCERY ITEM
- *  id: string; // Unique identifier (like "item-123")
-  name: string; // What the item is called ("Milk")
-  quantity?: string;
-  completed: boolean; // Whether it's been checked off the list
-  createdAt: string; // When it was added to the list
-  price?: number;
-  addedBy?: string;
- */
-
-//Creating a context to create an empty container for the data
 const ListContext = createContext<ListContextType | undefined>(undefined);
 
-// Needed so that all the children can access the listprovider's functions and lists
 interface ListProviderProps {
   children: ReactNode;
 }
 
-/************************************************************************************************************************/
-//Creating the actual component which will
-//Store the data, and provide CRUD operations
+// ========================================
+// SECTION 2: PROVIDER
+// ========================================
+
 export function ListProvider(props: ListProviderProps) {
-  // ------------------------------------------
-  // STATE: Store all lists in memory
-  // ------------------------------------------
-  const [lists, setLists] = useState<GroceryList[]>([]); // a list of objects. the objects represents the new list
+  const [lists, setLists] = useState<GroceryList[]>([]);
+
+  // Ref so the service always reads the latest lists without being recreated on every render.
+  const listsRef = useRef(lists);
+  listsRef.current = lists;
+
+  const service = useMemo(() => new LocalListService(listsRef, setLists), []);
 
   // ------------------------------------------
   // FUNCTION: addList
   // ------------------------------------------
-  // Used in: app/create-list/index.tsx to create a new list by the handleCreateList callback function at line 45
-  // Parameters: name (string), store (string) the actual store, items (GroceryItem[], default to [])
-  // Returns: GroceryList (the newly created list)
-  /**
-   * NEED TO:
-   * 1.  generate a unique ID for list
-   * 2. get the current timestamp to update the created at
-   * 3. create a newList object of GroceryList type that will be the strucutre of grocerylist
-   * 4. update the lists state by calling setList
-   *
-   */
-
   const addList = (name: string, store: string): GroceryList | null => {
-    const normalizedName = name.trim().replace(/\s+/g, " ");
-    const normalizedStore = store.trim().replace(/\s+/g, " ");
-
-    // Core validation: required fields, sane lengths, and no control chars.
-    if (!normalizedName || !normalizedStore) return null;
-    if (normalizedName.length > 80 || normalizedStore.length > 80) return null;
-    if (/[\u0000-\u001F\u007F]/.test(normalizedName)) return null;
-    if (/[\u0000-\u001F\u007F]/.test(normalizedStore)) return null;
-
-    const duplicateExists = lists.some(
-      (list) =>
-        list.name.toLowerCase() === normalizedName.toLowerCase() &&
-        list.store.toLowerCase() === normalizedStore.toLowerCase(),
-    );
-    if (duplicateExists) return null;
-
-    // generate unique ID for list:
-    let uniqID = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    // get the current timestamp:
-    let timeStamp = new Date().toISOString();
-    //define newList object:
-    const newList: GroceryList = {
-      id: uniqID,
-      name: normalizedName,
-      store: normalizedStore,
-      items: [],
-      createdAt: timeStamp,
-      updatedAt: timeStamp,
-    };
-
-    //adding newList to state
-    // setLists([...lists, newList]);
-    setLists((prevLists) => [...prevLists, newList]);
-
-    return newList;
+    return service.createList(name, store);
   };
 
   // ------------------------------------------
   // FUNCTION: updateList
   // ------------------------------------------
-  // Used internally by: addItemToList, updateItem, and deleteItem functions to update list state
-  // TODO: updates the name of list or store
-  // Parameters: list id (string), updates (Partial<GroceryList>)
-  // Returns: void
-  /**
-   * NEED TO:
-   * 1. create a variable that creates a list of previous(unchanged) items along with the items that have been updated
-   * DO THIS BY: mapping through the lists array and find the specific list by matching the id from parameter with each iteration of the list
-   * 2. if list object is found we update by creating an object that merges the list object and its update through spread operators
-   * 3. if list object not found then theres nothing to change so just return listobject
-   
-   *  NOTE: updates is represented as an object because it is of type groceryList
-   * updates will also be an object that contains exactly what we want to update
-   */
+  // Used internally and directly when updating list name/store.
   const updateList = (id: string, updates: Partial<GroceryList>) => {
-    setLists((prev) => {
-      const updatedList: GroceryList[] = prev.map((listObject) =>
-        listObject.id == id
-          ? { ...listObject, ...updates, updatedAt: new Date().toISOString() }
-          : listObject,
-      );
-      return updatedList;
-    });
+    service.updateList(id, updates);
   };
+
   // ------------------------------------------
   // FUNCTION: deleteList
   // ------------------------------------------
-  // Used in: Currently not used in any component (available for future implementation)
-  // Parameters: id (string)
-  // Returns: void
   const deleteList = (id: string) => {
-    const updatedList = lists.filter((listObject) => id !== listObject.id);
-
-    setLists(updatedList);
-
-    return;
+    service.deleteList(id);
   };
+
   // ------------------------------------------
   // FUNCTION: getListById
   // ------------------------------------------
-  // Used in: app/list/[id].tsx at line 39 to retrieve the current list being displayed
-  // Parameters: id (string)
-  // Returns: GroceryList | undefined... undefined because there could be none by the id
-
   const getListById = (id: string): GroceryList | undefined => {
-    const specificList = lists.find((listObject) => listObject.id === id);
-
-    return specificList;
+    return lists.find((l) => l.id === id);
   };
+
   // ------------------------------------------
   // FUNCTION: addItemToList
   // ------------------------------------------
-  // Used in: app/list/[id].tsx at line 51 by the handleAddItem function to add a new item to the list
-  // Parameters: listId (string), name (string), quantity (optional string), price (number), addedBy (string)
-  // Returns: void
-  /***
-   * Need to:
-   * 1. Find the list so we can copy its items(spreading) when we update lists state
-   * 2. create a newItem that will represent the structure of GroceryItem
-   * 3. call the updateList function with the listID and the updates.
-   * NOTE: updates is represented as an object because it is of type groceryList
-   * updates will also be an object that contains exactly what we want to update. in this function it will be items
-   */
-
   const addItemToList = (
     listId: string,
     name: string,
-    quantity?: string,
-    price?: number,
-    addedBy?: string,
+    quantity?: number | null,
+    unit?: string,
+    category?: string,
+    notes?: string,
   ) => {
-    const newItem: GroceryItem = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name,
-      quantity,
-      createdAt: new Date().toISOString(),
-      price,
-      addedBy,
-    };
-
-    setLists((prev) => {
-      const findList = prev.find((listObject) => listObject.id === listId);
-      if (!findList) return prev;
-
-      return prev.map((listObject) =>
-        listObject.id === listId
-          ? {
-              ...listObject,
-              items: [...listObject.items, newItem],
-              updatedAt: new Date().toISOString(),
-            }
-          : listObject,
-      );
-    });
+    service.addItem(listId, name, quantity, unit, category, notes);
   };
+
   // ------------------------------------------
   // FUNCTION: updateItem
   // ------------------------------------------
-  // Used in: app/list/[id].tsx at line 77 by the handleSaveEdit function to update an item's name
-  // TODO: Create a function called updateItem
-  // Parameters: listId (string), itemId (string), updates (Partial<GroceryItem>)
-  // Returns: void
-  /**
-   * NEED TO DO:
-   * 1. Use the listId to find the specific list
-   * 2. use the itemId to find the specific item and merge the items and updates
-   * 3. if specific item doesn't match what we need to be updating, then just return the item object of groceryItem type
-   *
-   */
-
-  const updateItem = (
-    listId: string,
-    itemId: string,
-    updates: Partial<GroceryItem>,
-  ) => {
-    //get and find the specific list:
-    const specificList: GroceryList | undefined = getListById(listId);
-
-    if (!specificList) return;
-
-    const updatedItems: GroceryItem[] = specificList.items.map((item) =>
-      item.id === itemId ? { ...item, ...updates } : item,
-    );
-
-    updateList(listId, { items: updatedItems });
+  const updateItem = (listId: string, itemId: string, updates: Partial<GroceryItem>) => {
+    service.updateItem(listId, itemId, updates);
   };
+
   // ------------------------------------------
   // FUNCTION: deleteItem
   // ------------------------------------------
-  // Used in: app/list/[id].tsx at line 62 by the handleDeleteItem function to remove an item from the list
-  // Parameters: listId (string), itemId (string)
-  // Returns: void
-
   const deleteItem = (listId: string, itemId: string) => {
-    const specificList: GroceryList | undefined = getListById(listId);
+    service.deleteItem(listId, itemId);
+  };
 
-    if (!specificList) return;
-
-    const filteredItems = specificList.items.filter(
-      (item) => item.id !== itemId,
-    );
-
-    updateList(listId, { items: filteredItems });
+  // ------------------------------------------
+  // FUNCTION: deleteItemByName
+  // ------------------------------------------
+  const deleteItemByName = (listId: string, itemName: string) => {
+    service.deleteItemByName(listId, itemName);
   };
 
   // ------------------------------------------
   // FUNCTION: toggleItem
   // ------------------------------------------
-  // NOTE: Item completion is now managed by ShoppingSession (sessionContext.tsx).
-  // Toggling completed state on the blueprint list is intentionally removed.
-  // This function is kept as a no-op so existing call sites don't break at runtime.
-  // Parameters: listId (string), itemId (string)
-  // Returns: void
+  // NOTE: Completion state lives on SessionItem, not GroceryItem.
+  // Use toggleSessionItem from sessionContext instead.
+  const toggleItem = (_listId: string, _itemId: string) => {};
 
-  const toggleItem = (_listId: string, _itemId: string) => {
-    // Completion state lives on SessionItem, not GroceryItem.
-    // Use toggleSessionItem from sessionContext instead.
-  };
-
-  // creating an object of ListContextType which will be used as a value for the listcontext provider
   const value: ListContextType = {
     lists,
     addList,
@@ -286,22 +124,21 @@ export function ListProvider(props: ListProviderProps) {
     deleteList,
     getListById,
     addItemToList,
+    deleteItemByName,
     updateItem,
     deleteItem,
     toggleItem,
   };
 
-  // Fills the empty container with real data (lists, addList, etc.) and return it
-  // {props.children} means everything wrapped inside this Provider can access the data
   return (
     <ListContext.Provider value={value}>{props.children}</ListContext.Provider>
   );
 }
 
-/************************************************************************************************************************/
+// ========================================
+// SECTION 3: CUSTOM HOOK
+// ========================================
 
-/************************************************************************************************************************/
-// CREATING THE CUSTOM HOOK
 export function useLists(): ListContextType {
   const context = useContext(ListContext);
   if (context === undefined) {
@@ -309,4 +146,3 @@ export function useLists(): ListContextType {
   }
   return context;
 }
-/************************************************************************************************************************/

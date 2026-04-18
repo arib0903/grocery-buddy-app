@@ -7,12 +7,12 @@
  * Reached from: list/[id].tsx → "Start Shopping" button
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   Alert,
   SafeAreaView,
@@ -27,16 +27,52 @@ import { spacing } from "../../constants/spacing";
 import { useSessions } from "../../lib/state/sessionContext";
 import { SessionItem } from "../../lib/types";
 import { useLists } from "../../lib/state/listContext";
+import { CategorySectionHeader } from "../../components/common/CategorySectionHeader";
+import { groupByCategory } from "../../lib/utils/groupByCategory";
+
+// ========================================
+// SECTION: VOICE IMPORTS
+// ========================================
+// FloatingMicButton: mic FAB UI and listening/disabled visual state.
+// useShoppingVoiceCommands: encapsulates parse/confirm/apply voice pipeline.
+import { FloatingMicButton } from "../../components/common/FloatingMicButton";
+import { useShoppingVoiceCommands } from "../../lib/voice/useShoppingVoiceCommands";
 
 export default function ShoppingMode() {
   const { id: sessionId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getSessionById, toggleSessionItem, completeSession, addItemToSession } = useSessions();
+  const {
+    getSessionById,
+    toggleSessionItem,
+    completeSession,
+    addItemToSession,
+    resyncSession,
+  } = useSessions();
   const { getListById } = useLists();
   const [manualName, setManualName] = useState("");
+  // ========================================
+  // SECTION: VOICE HOOK INTEGRATION
+  // ========================================
+  // Shopping screen consumes voice state + handlers from one orchestration hook.
+  const {
+    isVoiceAvailable,
+    isListening,
+    isParsing,
+    lastTranscript,
+    voiceError,
+    clearVoiceError,
+    handleVoiceCommand,
+  } = useShoppingVoiceCommands({ sessionId, setManualName });
 
   const session = getSessionById(sessionId);
   const list = session ? getListById(session.listId) : undefined;
+
+  useEffect(() => {
+    if (!session || !list) return;
+    if (session.completedAt) return;
+
+    resyncSession(session.id, list);
+  }, [session?.id, session?.completedAt, list?.updatedAt, resyncSession, list]);
 
   if (!session) {
     return (
@@ -81,10 +117,6 @@ export default function ShoppingMode() {
     );
   };
 
-  const handleVoiceCommand = () => {
-    Alert.alert("Voice Commands", "Voice command feature coming soon!");
-  };
-
   const renderItem = ({ item }: { item: SessionItem }) => (
     <TouchableOpacity
       style={styles.itemRow}
@@ -103,14 +135,14 @@ export default function ShoppingMode() {
         >
           {item.name}
         </Text>
-        {item.quantity && (
+        {item.quantity != null && (
           <Text
             style={[
               styles.itemQuantity,
               item.completed && styles.itemQuantityCompleted,
             ]}
           >
-            {item.quantity}
+            {item.unit ? `${item.quantity} ${item.unit}` : String(item.quantity)}
           </Text>
         )}
       </View>
@@ -122,109 +154,169 @@ export default function ShoppingMode() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-    <SafeAreaView style={styles.container}>
-      {/* Green Header */}
-      <View style={styles.header}>
-        {/* Back button */}
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.white} />
-        </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        {/* Green Header */}
+        <View style={styles.header}>
+          {/* Back button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
+          </TouchableOpacity>
 
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Shopping Mode</Text>
-          <Text style={styles.headerSubtitle}>
-            {list?.store ?? "Store"} • {completedItems}/{totalItems} items
-          </Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Shopping Mode</Text>
+            <Text style={styles.headerSubtitle}>
+              {list?.store ?? "Store"} • {completedItems}/{totalItems} items
+            </Text>
+          </View>
+
+          {/* Settings icon placeholder */}
+          <TouchableOpacity style={styles.settingsButton}>
+            <Ionicons
+              name="options-outline"
+              size={24}
+              color="rgba(255,255,255,0.8)"
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* Settings icon placeholder */}
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons
-            name="options-outline"
-            size={24}
-            color="rgba(255,255,255,0.8)"
-          />
-        </TouchableOpacity>
-      </View>
+        {/* Progress Bar */}
+        <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarFill, { flex: progressPercent }]} />
+          <View style={{ flex: 1 - progressPercent }} />
+        </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressBarTrack}>
-        <View style={[styles.progressBarFill, { flex: progressPercent }]} />
-        <View style={{ flex: 1 - progressPercent }} />
-      </View>
-
-      {/* Items List */}
-      <FlatList
-        data={session.items}
-        keyExtractor={(item) => item.itemId}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <Text style={styles.sectionHeader}>
-            {list?.name ?? "Shopping List"}
-          </Text>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No items in this session.</Text>
-          </View>
-        }
-        renderItem={renderItem}
-        ListFooterComponent={
-          <View style={styles.manualEntryContainer}>
-            <Text style={styles.manualEntryLabel}>ADD TO THIS TRIP</Text>
-            <View style={styles.manualEntryRow}>
-              <TextInput
-                style={styles.manualInput}
-                value={manualName}
-                onChangeText={setManualName}
-                placeholder="Item name..."
-                placeholderTextColor={colors.gray400}
-                returnKeyType="done"
-                onSubmitEditing={handleAddManual}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.manualAddBtn,
-                  !manualName.trim() && styles.manualAddBtnDisabled,
-                ]}
-                onPress={handleAddManual}
-                disabled={!manualName.trim()}
-              >
-                <Ionicons name="add" size={22} color={colors.white} />
-              </TouchableOpacity>
+        {/* Items List */}
+        <SectionList
+          style={styles.sectionList}
+          sections={groupByCategory(session.items)}
+          keyExtractor={(item) => item.itemId}
+          contentContainerStyle={styles.listContent}
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) => (
+            <CategorySectionHeader title={section.title} />
+          )}
+          ListHeaderComponent={
+            <Text style={styles.sectionHeader}>
+              {list?.name ?? "Shopping List"}
+            </Text>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No items in this session.</Text>
             </View>
+          }
+          renderItem={renderItem}
+          ListFooterComponent={
+            <View style={styles.manualEntryContainer}>
+              <Text style={styles.manualEntryLabel}>ADD TO THIS TRIP</Text>
+              <View style={styles.manualEntryRow}>
+                <TextInput
+                  style={styles.manualInput}
+                  value={manualName}
+                  onChangeText={setManualName}
+                  placeholder="Item name..."
+                  placeholderTextColor={colors.gray400}
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddManual}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.manualAddBtn,
+                    !manualName.trim() && styles.manualAddBtnDisabled,
+                  ]}
+                  onPress={handleAddManual}
+                  disabled={!manualName.trim()}
+                >
+                  <Ionicons name="add" size={22} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          }
+        />
+
+        {/* ------------------------------------------
+            VOICE ERROR BANNER
+            ------------------------------------------
+            Displays recognition/network/config errors and allows quick dismissal.
+        */}
+        {voiceError && (
+          <TouchableOpacity
+            style={styles.voiceStatusError}
+            onPress={clearVoiceError}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="alert-circle" size={14} color={colors.white} />
+            <Text style={styles.voiceStatusText}>{voiceError}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ------------------------------------------
+            VOICE STATUS CARD
+            ------------------------------------------
+            Priority order:
+            1) Parsing (OpenAI in-flight)
+            2) Listening (native recognizer active)
+            3) Last heard transcript
+        */}
+        {(isListening || isParsing || lastTranscript) && (
+          <View style={styles.voiceStatusCard}>
+            <Ionicons
+              name={
+                isParsing
+                  ? "hourglass-outline"
+                  : isListening
+                    ? "mic"
+                    : "chatbubble-ellipses-outline"
+              }
+              size={14}
+              color={colors.gray700}
+            />
+            <Text style={styles.voiceStatusLabel}>
+              {isParsing
+                ? "Parsing your command..."
+                : isListening
+                  ? "Listening... tap mic again to stop"
+                  : `Last heard: ${lastTranscript}`}
+            </Text>
           </View>
-        }
-      />
+        )}
 
-      {/* Voice Command FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleVoiceCommand}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="mic" size={28} color={colors.white} />
-      </TouchableOpacity>
+        {/* ------------------------------------------
+            VOICE COMMAND FAB
+            ------------------------------------------
+            Disabled when voice module is unavailable or while parsing.
+            Uses mic/stop icon state from FloatingMicButton.
+        */}
+        <FloatingMicButton
+          style={styles.fab}
+          onPress={() => {
+            void handleVoiceCommand();
+          }}
+          isListening={isListening}
+          disabled={!isVoiceAvailable || isParsing}
+        />
 
-      {/* Complete Shopping Trip Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.completeButton}
-          onPress={handleCompleteTrip}
-          activeOpacity={0.85}
-        >
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={20}
-            color={colors.white}
-          />
-          <Text style={styles.completeButtonText}>Complete Shopping Trip</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+        {/* Complete Shopping Trip Button */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.completeButton}
+            onPress={handleCompleteTrip}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={20}
+              color={colors.white}
+            />
+            <Text style={styles.completeButtonText}>
+              Complete Shopping Trip
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
@@ -360,6 +452,9 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  sectionList: {
+    flex: 1,
+  },
 
   // ── Manual entry ───────────────────────────────────────────────
   manualEntryContainer: {
@@ -410,17 +505,46 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: spacing.fab.bottom + 80, // above the footer
     right: spacing.fab.right,
-    width: spacing.fab.size,
-    height: spacing.fab.size,
-    borderRadius: spacing.fab.size / 2,
-    backgroundColor: colors.shoppingGreen,
-    justifyContent: "center",
+  },
+
+  // ── Voice status ───────────────────────────────────────────────
+  voiceStatusCard: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.fab.bottom + 150,
+    backgroundColor: colors.gray100,
+    borderRadius: spacing.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: colors.black,
-    shadowOffset: spacing.shadowOffset.medium,
-    shadowOpacity: spacing.shadowOpacity.heavy,
-    shadowRadius: spacing.shadowRadius.medium,
-    elevation: 6,
+    gap: spacing.sm,
+  },
+  voiceStatusError: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.fab.bottom + 150,
+    backgroundColor: colors.danger,
+    borderRadius: spacing.borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  voiceStatusLabel: {
+    flex: 1,
+    color: colors.gray700,
+    fontSize: 13,
+  },
+  voiceStatusText: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 12,
   },
 
   // ── Footer ─────────────────────────────────────────────────────
