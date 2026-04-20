@@ -7,5 +7,18 @@
       "Bash(git checkout *)",
       "Bash(git pull *)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/Users/mahbo1/Desktop/mobile_project/grocery-buddy/.claude/hooks/planning-reminder.sh\""
+          }
+        ]
+      }
+    ]
   }
 }
