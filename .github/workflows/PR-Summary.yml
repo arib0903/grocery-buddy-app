@@ -3,10 +3,7 @@ name: AI PR Summary
 on:
   pull_request:
     types: [opened, reopened]
-  push:
-    branches:
-      - main
-
+    
 permissions:
   models: read
   pull-requests: write
